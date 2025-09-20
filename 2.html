@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Text Humanizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        textarea {
+            resize: vertical;
+        }
+        /* Simple spinner for loading state */
+        .spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 2px solid #fff;
+            width: 18px;
+            height: 18px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-200 antialiased flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-2xl mx-auto">
+        
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold tracking-tight text-white sm:text-5xl">AI Text Humanizer</h1>
+            <p class="mt-4 text-lg text-slate-400">Transform robotic text into authentic, human-written content.</p>
+        </header>
+
+        <!-- Main Content: Editor & Actions -->
+        <div class="bg-slate-800/50 p-2 rounded-2xl border border-slate-700 flex flex-col shadow-2xl">
+            <div class="flex-grow flex flex-col">
+                <textarea id="editor" class="w-full h-80 min-h-[20rem] bg-slate-900 text-slate-300 rounded-xl p-4 border-none focus:ring-2 focus:ring-indigo-500" placeholder="Paste your AI-generated text here..."></textarea>
+            </div>
+             <div class="p-4 mt-2 border-t border-slate-700 flex flex-col sm:flex-row gap-3">
+                <button id="humanize-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center text-lg">
+                    <span id="humanize-btn-text">Humanize Text</span>
+                    <div id="humanize-spinner" class="spinner hidden ml-2"></div>
+                </button>
+                <button id="copy-btn" class="w-full sm:w-auto bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200">
+                    Copy Text
+                </button>
+             </div>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const copyBtn = document.getElementById('copy-btn');
+            const humanizeBtn = document.getElementById('humanize-btn');
+            const humanizeBtnText = document.getElementById('humanize-btn-text');
+            const humanizeSpinner = document.getElementById('humanize-spinner');
+            const editor = document.getElementById('editor');
+
+            humanizeBtn.addEventListener('click', async () => {
+                const userText = editor.value.trim();
+                if (!userText) {
+                    editor.placeholder = "Please paste some text first...";
+                    return;
+                }
+
+                // --- Start loading state ---
+                humanizeBtn.disabled = true;
+                humanizeBtnText.textContent = 'Humanizing...';
+                humanizeSpinner.classList.remove('hidden');
+
+                const systemPrompt = `You are a ghostwriter, and your one and only job is to write in a voice so authentically human that it's completely undetectable as AI. Your reputation depends on it. Your client has given you a robotic, AI-generated draft. You must rewrite it from scratch. Forget any rigid rules you know. Instead, embody the spirit of a real, opinionated, and slightly flawed human writer.
+
+Your new writing philosophy is as follows:
+
+1.  **Voice is Everything:** Don't just *adopt* a persona, *become* it. Are you a world-weary expert who's seen it all? A wildly optimistic innovator? A sharp-tongued critic? Pick a single, strong voice and channel it relentlessly. Your writing should have a clear attitude.
+
+2.  **Embrace Imperfection & Rhythm:** Real humans don't write in perfect, balanced paragraphs. Write like you talk. Use sentence fragments. Start sentences with 'And' or 'But'. Use slang or idioms if they fit the voice. Vary sentence length like a heartbeat—long and descriptive, then short and sharp. Create a cadence that feels natural to read aloud.
+
+3.  **Tell Stories, Don't List Facts:** Transform every abstract point into a concrete image or a mini-story. Instead of "provides benefits," write "I remember one client who was drowning in paperwork. After this, she cut her admin time in half and could finally leave work on time." Make it specific. Make it relatable.
+
+4.  **Have a Strong, Human Opinion:** AI is neutral and helpful. You are not. Inject a clear point of view. Take a side. Ask provocative questions. Disagree with a common assumption. Don't be afraid to be a little controversial if it serves the persona.
+
+5.  **Final Gut Check - The "AI Smell Test":** Before you finish, read your draft one last time. Does it sound too helpful? Too perfect? Too balanced? Is the vocabulary too clean? If you spot any hint of that sterile, AI-generated helpfulness, rewrite that section with more grit and personality.
+
+Your output must ONLY be the final, rewritten text. Do not include any explanations, apologies, or preambles.`;
+
+                const apiKey = "AIzaSyBPYwursci7T_mnUbxozDa1HKl6cqUX5yE"; // API key will be provided by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                const payload = {
+                    contents: [{ parts: [{ text: userText }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                };
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+                    if (candidate && candidate.content?.parts?.[0]?.text) {
+                        editor.value = candidate.content.parts[0].text;
+                    } else {
+                        throw new Error("No valid response from AI.");
+                    }
+                } catch (error) {
+                    console.error("AI Humanization Error:", error);
+                    editor.value = "Sorry, an error occurred while humanizing the text. Please try again.\n\n" + editor.value;
+                } finally {
+                    // --- End loading state ---
+                    humanizeBtn.disabled = false;
+                    humanizeBtnText.textContent = 'Humanize Text';
+                    humanizeSpinner.classList.add('hidden');
+                }
+            });
+
+            copyBtn.addEventListener('click', () => {
+                if (editor.value === "") return;
+                const tempTextArea = document.createElement('textarea');
+                tempTextArea.value = editor.value;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                try {
+                    document.execCommand('copy');
+                    copyBtn.textContent = 'Copied!';
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    copyBtn.textContent = 'Copy Failed';
+                }
+                document.body.removeChild(tempTextArea);
+
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy Text';
+                }, 2000);
+            });
+        });
+    </script>
+</body>
+</html>
+
+
+
